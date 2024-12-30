@@ -1,5 +1,4 @@
-import java.util.HashMap;
-import java.util.Scanner;
+import java.util.*;
 
 public class ATM {
     private HashMap<String, Account> accounts;
@@ -31,9 +30,9 @@ public class ATM {
     }
 
     private Account authenticate() {
-        int attempts = 3;
+        int maxAttempts = 3;
 
-        while (attempts > 0) {
+        while (maxAttempts > 0) {
             System.out.print("Enter Account Number: ");
             String accountNumber = scanner.nextLine().trim();
 
@@ -41,12 +40,26 @@ public class ATM {
             String pin = scanner.nextLine().trim();
 
             Account account = accounts.get(accountNumber);
-            if (account != null && account.getPin().equals(pin)) {
-                System.out.println("Authentication successful.");
-                return account;
+            if (account != null) {
+                if (account.isLocked()) {
+                    System.out.println("This account is locked due to multiple failed attempts.");
+                    return null;
+                }
+                if (account.getPin().equals(pin)) {
+                    System.out.println("Authentication successful.");
+                    return account;
+                } else {
+                    maxAttempts--;
+                    account.incrementFailedAttempts();
+                    System.out.printf("Invalid PIN. Attempts remaining: %d\n", maxAttempts);
+                    if (account.getFailedAttempts() >= 3) {
+                        account.lock();
+                        System.out.println("Account locked due to too many failed attempts.");
+                        return null;
+                    }
+                }
             } else {
-                attempts--;
-                System.out.printf("Invalid account number or PIN. Attempts remaining: %d\n", attempts);
+                System.out.println("Invalid account number.");
             }
         }
         return null;
@@ -59,8 +72,9 @@ public class ATM {
                 System.out.println("1. Check Balance");
                 System.out.println("2. Deposit Money");
                 System.out.println("3. Withdraw Money");
-                System.out.println("4. Logout");
-                System.out.println("5. Exit");
+                System.out.println("4. View Transaction History");
+                System.out.println("5. Logout");
+                System.out.println("6. Exit");
                 System.out.print("Choose an option: ");
                 int choice = Integer.parseInt(scanner.nextLine().trim());
 
@@ -82,9 +96,12 @@ public class ATM {
                         }
                         break;
                     case 4:
+                        account.printTransactionHistory();
+                        break;
+                    case 5:
                         System.out.println("You have been logged out.");
                         return;
-                    case 5:
+                    case 6:
                         System.out.println("Thank you for using the ATM. Goodbye!");
                         System.exit(0);
                         break;
@@ -107,11 +124,17 @@ class Account {
     private String accountNumber;
     private String pin;
     private double balance;
+    private boolean locked;
+    private int failedAttempts;
+    private List<String> transactionHistory;
 
     public Account(String accountNumber, String pin, double balance) {
         this.accountNumber = accountNumber;
         this.pin = pin;
         this.balance = balance;
+        this.locked = false;
+        this.failedAttempts = 0;
+        this.transactionHistory = new ArrayList<>();
     }
 
     public String getAccountNumber() {
@@ -126,9 +149,26 @@ class Account {
         return balance;
     }
 
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public int getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    public void lock() {
+        this.locked = true;
+    }
+
+    public void incrementFailedAttempts() {
+        this.failedAttempts++;
+    }
+
     public void deposit(double amount) {
         if (amount > 0) {
             balance += amount;
+            transactionHistory.add(String.format("Deposited: %.2f", amount));
         } else {
             System.out.println("Deposit amount must be positive.");
         }
@@ -137,6 +177,7 @@ class Account {
     public boolean withdraw(double amount) {
         if (amount > 0 && amount <= balance) {
             balance -= amount;
+            transactionHistory.add(String.format("Withdrew: %.2f", amount));
             return true;
         } else if (amount <= 0) {
             System.out.println("Withdrawal amount must be positive.");
@@ -145,5 +186,13 @@ class Account {
         }
         return false;
     }
-}
 
+    public void printTransactionHistory() {
+        if (transactionHistory.isEmpty()) {
+            System.out.println("No transactions found.");
+        } else {
+            System.out.println("Transaction History:");
+            transactionHistory.forEach(System.out::println);
+        }
+    }
+}
